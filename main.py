@@ -1,3 +1,6 @@
+from collections import namedtuple
+
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy import linalg
 
@@ -86,25 +89,52 @@ if __name__ == "__main__":
     H = (10*np.random.random((M,N))-5*np.ones((M,N))) + (10j*np.random.random((M,N))-5j*np.ones((M,N)))
 
     # and v is a random vector of the appropriate dimensions.
+    # Actually if I define v as a massive matrix and then iterate through the columns that
+    # would give me K iterations to look at min,max and average error.
 
-    v = (10*np.random.random((N,1))-5*np.ones((N,1))) + (10j*np.random.random((N,1))-5j*np.ones((N,1)))
+    K = 10000
+
+    v = (10*np.random.random((N,K))-5*np.ones((N,K))) + (10j*np.random.random((N,K))-5j*np.ones((N,K)))
 
     # Now I need the singular value decomposition of H
     U, s, Vh = linalg.svd(H)
 
     # And I can create a low rank approximation of H
-    # First defining the rank of the approximation
-    RANK = 15
+    # I can loop through all the ranks of a full rank matrix and create a list of error statistics
 
-    # Then constructing the matrix as U_low_rank \in C^{n,10} times Sigma_low_rank \in R^{10,10} times Vh_low_rank \in C^{10,m}
-    H_low_rank = np.matmul( np.matmul(U[:,0:RANK],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:RANK,0:RANK]), Vh[0:RANK,:])
-    
-    # The error in the 2 norm sense is going to be ||H*v - H_low_rank*v||
-    # And the theoretical upper bound (I think) of that error is going to be the largest excluded singular value
-    # First we find that singular value
-    error_bound = s[RANK] if RANK < len(s) else 0 # It's RANK not RANK+1 because of python's 0 indexing
-    print(error_bound)
+    # First create the list of error statistics it will be a K list of named tuples
+    ErrorStatistic = namedtuple('ErrorStatistic', 'error_bound min_error mean_error max_error')
+    error_statistics = []
+    for rank in range(1,N+1):
+        # Then constructing the matrix as U_low_rank \in C^{n,10} times Sigma_low_rank \in R^{10,10} times Vh_low_rank \in C^{10,m}
+        H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
+        # The error in the 2 norm sense is going to be ||H*v - H_low_rank*v||
+        # And the theoretical upper bound (I think) of that error is going to be the largest excluded singular value
+        # First we find that singular value
+        error_bound = s[rank] if rank < len(s) else 0 # It's RANK not RANK+1 because of python's 0 indexing
+        # print(f'Error Bound is: {error_bound}')
 
-    # Now evaluate the error directly normalised by the magnitude of v ||H*v - H_low_rank*v||/||v||
-    error = np.linalg.norm(np.matmul(H,v) - np.matmul(H_low_rank, v), ord=2)/np.linalg.norm(v, ord=2)
-    print(error)
+        # Now evaluate the error directly normalised by the magnitude of v ||H*v - H_low_rank*v||/||v||
+        # (Wait is the norm a linear process can I do this?)
+
+        # iterate through the loop K times and find the min, max and average.
+        error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(K)]
+        error_statistics.append(ErrorStatistic(error_bound, min(error_vec), sum(error_vec)/K, max(error_vec)))
+        # print(f'error_bound: {error_statistics[-1].error_bound}, '
+        #     f'max_error: {error_statistics[-1].max_error}, '
+        #     f'mean_error: {error_statistics[-1].mean_error}, '
+        #     f'min_error: {error_statistics[-1].min_error}')
+
+    # Below I'm going to try and plot this error_statistics madness
+    fig, ax = plt.subplots() # Create a figure containing a single axes.
+    ax.plot(range(1,N+1),[error_statistics[i].error_bound for i in range(N)])
+    ax.errorbar(
+        range(1,N+1),
+        [error_statistics[i].mean_error for i in range(N)],
+        [
+            [error_statistics[i].mean_error - error_statistics[i].min_error for i in range(N)],
+            [error_statistics[i].max_error - error_statistics[i].mean_error for i in range(N)]
+        ],
+        fmt='or',
+        capsize=3)
+    plt.show()
