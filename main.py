@@ -1,7 +1,7 @@
 import numpy as np
 
 def two_norm_of_matrix(a_mat: np.matrix) -> bool:
-    '''
+    """
     Parameters:
     ---
 
@@ -25,20 +25,21 @@ def two_norm_of_matrix(a_mat: np.matrix) -> bool:
 
     ||Ax||_{2}^{2} = \lambda ||x||_{2}^{2}
 
-    A nice proof is outlined in [1] but just for future reference (in case math stackexchange disappears forever)
-    I'll write it out again here.
+    A nice proof is outlined in [1] but just for future reference
+    (in case math stackexchange disappears forever) I'll write it out again here.
 
     Begin Quote:
-    
-    From the SVD of A = UDV^{T} we can see that the eigenvalues of A^{T}A = VD^{2}V^{T} are just squared
-    ones from A. At the same time the columns of V are the eigenvectors of A^{T}A. So, exploiting orthogonality of
+
+    From the SVD of A = UDV^{T} we can see that the eigenvalues
+    of A^{T}A = VD^{2}V^{T} are just squared ones from A. At the same time
+    the columns of V are the eigenvectors of A^{T}A. So, exploiting orthogonality of
     these eigenvectors.
 
     ||Ax||_{2}^{2} = ||UDVx||_{2}^{2} = ||D(Vx)||_{2}^{2} = ||De_{\lambda}||x||||_{2}^{2} = ||\sqrt{\lambda}||x||||_{2}^{2} = \lambda ||x||_{2}^{2}
 
     My calculation is slightly different from this definition because I don't square these values.
-    This doesn't really make a big difference for the exercise below because the 2-norm is positive definite, so negative
-    numbers are not a problem.
+    This doesn't really make a big difference for the exercise below because
+    the 2-norm is positive definite, so negative numbers are not a problem.
 
     End Quote
     ---
@@ -49,7 +50,7 @@ def two_norm_of_matrix(a_mat: np.matrix) -> bool:
     ---
     Author: Kevin Exton
     Date: 2020-10-16
-    '''
+    """
     a_mat_2 = np.matmul(np.asmatrix(a_mat).H, np.asmatrix(a_mat))
     eigval, eigvec = np.linalg.eigh(a_mat_2)
     x = np.asmatrix(eigvec[:,0])
