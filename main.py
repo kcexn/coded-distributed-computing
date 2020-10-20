@@ -81,8 +81,8 @@ if __name__ == "__main__":
     # dimensions.
 
     # First parametrize the dimensions
-    M = 50
-    N = 30
+    M = 100
+    N = 60
 
     # Then define H and v.
 
@@ -120,15 +120,18 @@ if __name__ == "__main__":
         # iterate through the loop K times and find the min, max and average.
         error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(K)]
         error_statistics.append(ErrorStatistic(error_bound, min(error_vec), sum(error_vec)/K, max(error_vec)))
-        # print(f'error_bound: {error_statistics[-1].error_bound}, '
-        #     f'max_error: {error_statistics[-1].max_error}, '
-        #     f'mean_error: {error_statistics[-1].mean_error}, '
-        #     f'min_error: {error_statistics[-1].min_error}')
+
+    # I'm curious about what the distribution looks like. So I'm going to run a single error vec iteration. with a fixed rank estimation
+    # This will be repeating one of the iterations in the above loop which adds redundancy, but I don't think it's a big deal here.
+    rank = 10
+    H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
+    error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(K)]
+    
 
     # Below I'm going to try and plot this error_statistics madness
-    fig, ax = plt.subplots() # Create a figure containing a single axes.
-    ax.plot(range(1,N+1),[error_statistics[i].error_bound for i in range(N)])
-    ax.errorbar(
+    fig, axs = plt.subplots(2,1) # Create a figure containing a single axes.
+    axs[0].plot(range(1,N+1),[error_statistics[i].error_bound for i in range(N)])
+    axs[0].errorbar(
         range(1,N+1),
         [error_statistics[i].mean_error for i in range(N)],
         [
@@ -137,4 +140,19 @@ if __name__ == "__main__":
         ],
         fmt='or',
         capsize=3)
+    # Add axs labels
+    axs[0].set_ylabel('Error Magnitude in the 2-norm')
+    axs[0].set_xlabel('Rank of SVD Approximation')
+    axs[0].set_title('Error Bounds Comparison between upper bound and \'real\' error.')
+
+    # Plot the Histogram
+    axs[1].hist(error_vec, bins=1000)
+
+    # Add axs labels
+    axs[1].set_ylabel('No. of Vectors')
+    axs[1].set_xlabel(f'Error Magnitude in the 2-norm of rank {rank} approximation')
+    axs[1].set_title(f'Error Magnitude Distribution in the 2-norm of rank {rank} approximation')
+
+    # Label the figure
+    fig.suptitle('A Study of the Error Performance of the Singular Value Decomposition in the 2-norm')
     plt.show()
