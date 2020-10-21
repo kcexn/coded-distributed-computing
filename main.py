@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import linalg
 
-def singular_value_decomposition_error_study(m: int, n: int, k: int) -> None:
+def singular_value_decomposition_error_study(m: int, n: int, k: int, order: np.array = None, H: np.matrix = None) -> None:
     '''
     Parameters:
     ---
     m: int, the number of rows in the matrix H
     n: int, the number of columns in the matrix H
     k: int, the number of iterations of H*v to simulate
+    order: np.array, the order of singular values to create the low rank approximation of matrix H
+    H: np.matrix, the matrix to approximate.
 
     ---
     Returns:
@@ -26,12 +28,15 @@ def singular_value_decomposition_error_study(m: int, n: int, k: int) -> None:
     Description:
     ---
 
-    A random matrix H is defined.
+    A random matrix H is defined. If H is not supplied
     k random vectors v are defined
 
     Perform the singular value decomposition of H.
 
     Create a low rank approximation of H, H_low_rank.
+
+    The low rank approximation is built in the order of largest to smallest singular values
+    unless an order is explicitly provided.
 
     Find the upper bound of the 2-norm error between H and H_low_rank.
     Defined in the text 'Linear Algebra - Liesen', also in my obsidian notes
@@ -45,11 +50,25 @@ def singular_value_decomposition_error_study(m: int, n: int, k: int) -> None:
     A comparison is made between the theoretical upper bound of the error imposed by the low rank
     approximation of the singular value decomposition and the expected error from selecting vectors v
     at random.
+    ---
+    Author: Kevin Exton
+    Date: 2020-10-21
 
     '''
+    # Error Checking
+    if order is not None and len(order) != n:
+        print(f'the number of elements in order should be {n}.')
+        return None
+    
+    if H is not None:
+        if H.shape[0] > m or H.shape[1] > n:
+            print(f'the dimensions of H need to be {m} x {n}.')
+            return None
+
     # define H and v.
 
-    H = (10*np.random.random((m,n))-5*np.ones((m,n))) + (10j*np.random.random((m,n))-5j*np.ones((m,n)))
+    if H is None:
+        H = (10*np.random.random((m,n))-5*np.ones((m,n))) + (10j*np.random.random((m,n))-5j*np.ones((m,n)))
 
     # and v is a random vector of the appropriate dimensions.
     # Actually if I define v as a massive matrix and then iterate through the columns that
@@ -68,13 +87,32 @@ def singular_value_decomposition_error_study(m: int, n: int, k: int) -> None:
     # First create the list of error statistics it will be a K list of named tuples
     ErrorStatistic = namedtuple('ErrorStatistic', 'error_bound min_error mean_error max_error')
     error_statistics = []
+
+    # Create a variable to choose the order of the singular values to construct the
+    # low rank approximation
+    # order = np.random.choice(np.arange(n), n, replace=False)
+    if order is None:
+        order = np.arange(n)
+
     for rank in range(1,n+1):
+        selection = order[0:rank]
+        # print(np.matrix([U[:,i] for i in selection]).T.shape)
+
         # Then constructing the matrix as U_low_rank \in C^{n,10} times Sigma_low_rank \in R^{10,10} times Vh_low_rank \in C^{10,m}
-        H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
+        H_low_rank = np.matmul(
+            np.matmul(
+                np.matrix([U[:,i] for i in selection]).T,
+                linalg.diagsvd([s[i] for i in order],U.shape[0],Vh.shape[0])[0:rank,0:rank]
+            ), np.matrix([Vh[i,:] for i in selection])
+        )
         # The error in the 2 norm sense is going to be ||H*v - H_low_rank*v||
         # And the theoretical upper bound (I think) of that error is going to be the largest excluded singular value
         # First we find that singular value
-        error_bound = s[rank] if rank < len(s) else 0 # It's RANK not RANK+1 because of python's 0 indexing
+
+        error_bound = max( s[i] for i in (set(order) - set(selection)) ) if rank < len(s) else 0
+        # error_bound = max(set(s) - set(s[i] for i in order)) if rank < len(s) else 0
+
+        # error_bound = s[rank] if rank < len(s) else 0 # It's RANK not RANK+1 because of python's 0 indexing
         # print(f'Error Bound is: {error_bound}')
 
         # Now evaluate the error directly normalised by the magnitude of v ||H*v - H_low_rank*v||/||v||
@@ -86,10 +124,15 @@ def singular_value_decomposition_error_study(m: int, n: int, k: int) -> None:
 
     # I'm curious about what the distribution looks like. So I'm going to run a single error vec iteration. with a fixed rank estimation
     # This will be repeating one of the iterations in the above loop which adds redundancy, but I don't think it's a big deal here.
-    rank = 10
-    H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
+    rank = 3
+    selection = order[0:rank]
+    H_low_rank = np.matmul(
+        np.matmul(
+            np.matrix([U[:,i] for i in selection]).T,
+            linalg.diagsvd([s[i] for i in order],U.shape[0],Vh.shape[0])[0:rank,0:rank]
+        ), np.matrix([Vh[i,:] for i in selection])
+    )
     error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(k)]
-    
 
     # Below I'm going to try and plot this error_statistics madness
     fig, axs = plt.subplots(2,1) # Create a figure containing a single axes.
@@ -188,4 +231,4 @@ if __name__ == "__main__":
     # a = np.random.randint(1,10,size=(4,2)) + 1j*np.random.randint(1,10,size=(4,2))
     # print(two_norm_of_matrix(np.asmatrix(a)))
 
-    singular_value_decomposition_error_study(100,60,10000)
+    singular_value_decomposition_error_study(500,300,10000,np.random.choice(np.arange(300),300,replace=False))
