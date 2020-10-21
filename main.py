@@ -4,6 +4,123 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import linalg
 
+def singular_value_decomposition_error_study(m: int, n: int, k: int) -> None:
+    '''
+    Parameters:
+    ---
+    m: int, the number of rows in the matrix H
+    n: int, the number of columns in the matrix H
+    k: int, the number of iterations of H*v to simulate
+
+    ---
+    Returns:
+    ---
+    None
+    
+    ---
+    Example:
+    ---
+    singular_value_decomposition_error_study(100, 60, 10000)
+
+    ---
+    Description:
+    ---
+
+    A random matrix H is defined.
+    k random vectors v are defined
+
+    Perform the singular value decomposition of H.
+
+    Create a low rank approximation of H, H_low_rank.
+
+    Find the upper bound of the 2-norm error between H and H_low_rank.
+    Defined in the text 'Linear Algebra - Liesen', also in my obsidian notes
+    under 'Singular Value Decomposition'.
+
+    Evaluate the actual error between the analytical solution Hv and the approximate solution
+    H_low_rank * v. Using the following method.
+
+    ||H * v - H_low_rank * v||/||v||
+
+    A comparison is made between the theoretical upper bound of the error imposed by the low rank
+    approximation of the singular value decomposition and the expected error from selecting vectors v
+    at random.
+
+    '''
+    # define H and v.
+
+    H = (10*np.random.random((m,n))-5*np.ones((m,n))) + (10j*np.random.random((m,n))-5j*np.ones((m,n)))
+
+    # and v is a random vector of the appropriate dimensions.
+    # Actually if I define v as a massive matrix and then iterate through the columns that
+    # would give me K iterations to look at min,max and average error.
+
+    # K = 10000
+
+    v = (10*np.random.random((n,k))-5*np.ones((n,k))) + (10j*np.random.random((n,k))-5j*np.ones((n,k)))
+
+    # Now I need the singular value decomposition of H
+    U, s, Vh = linalg.svd(H)
+
+    # And I can create a low rank approximation of H
+    # I can loop through all the ranks of a full rank matrix and create a list of error statistics
+
+    # First create the list of error statistics it will be a K list of named tuples
+    ErrorStatistic = namedtuple('ErrorStatistic', 'error_bound min_error mean_error max_error')
+    error_statistics = []
+    for rank in range(1,n+1):
+        # Then constructing the matrix as U_low_rank \in C^{n,10} times Sigma_low_rank \in R^{10,10} times Vh_low_rank \in C^{10,m}
+        H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
+        # The error in the 2 norm sense is going to be ||H*v - H_low_rank*v||
+        # And the theoretical upper bound (I think) of that error is going to be the largest excluded singular value
+        # First we find that singular value
+        error_bound = s[rank] if rank < len(s) else 0 # It's RANK not RANK+1 because of python's 0 indexing
+        # print(f'Error Bound is: {error_bound}')
+
+        # Now evaluate the error directly normalised by the magnitude of v ||H*v - H_low_rank*v||/||v||
+        # (Wait is the norm a linear process can I do this?)
+
+        # iterate through the loop K times and find the min, max and average.
+        error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(k)]
+        error_statistics.append(ErrorStatistic(error_bound, min(error_vec), sum(error_vec)/k, max(error_vec)))
+
+    # I'm curious about what the distribution looks like. So I'm going to run a single error vec iteration. with a fixed rank estimation
+    # This will be repeating one of the iterations in the above loop which adds redundancy, but I don't think it's a big deal here.
+    rank = 10
+    H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
+    error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(k)]
+    
+
+    # Below I'm going to try and plot this error_statistics madness
+    fig, axs = plt.subplots(2,1) # Create a figure containing a single axes.
+    axs[0].plot(range(1,n+1),[error_statistics[i].error_bound for i in range(n)])
+    axs[0].errorbar(
+        range(1,n+1),
+        [error_statistics[i].mean_error for i in range(n)],
+        [
+            [error_statistics[i].mean_error - error_statistics[i].min_error for i in range(n)],
+            [error_statistics[i].max_error - error_statistics[i].mean_error for i in range(n)]
+        ],
+        fmt='or',
+        capsize=3)
+    # Add axs labels
+    axs[0].set_ylabel('Error Magnitude in the 2-norm')
+    axs[0].set_xlabel('Rank of SVD Approximation')
+    axs[0].set_title('Error Bounds Comparison between upper bound and \'real\' error.')
+
+    # Plot the Histogram
+    axs[1].hist(error_vec, bins=1000)
+
+    # Add axs labels
+    axs[1].set_ylabel('No. of Vectors')
+    axs[1].set_xlabel(f'Error Magnitude in the 2-norm of rank {rank} approximation')
+    axs[1].set_title(f'Error Magnitude Distribution in the 2-norm of rank {rank} approximation')
+
+    # Label the figure
+    fig.suptitle('A Study of the Error Performance of the Singular Value Decomposition in the 2-norm')
+    plt.show()
+
+
 def two_norm_of_matrix(a_mat: np.matrix) -> bool:
     """
     Parameters:
@@ -71,88 +188,4 @@ if __name__ == "__main__":
     # a = np.random.randint(1,10,size=(4,2)) + 1j*np.random.randint(1,10,size=(4,2))
     # print(two_norm_of_matrix(np.asmatrix(a)))
 
-    # --- Below here is related to looking at the problems in my obsidian note:
-    # Graceful Degradation of the Performance of Matrix Operations to Meet Timing Constraints
-
-    # To look at the upper error bound of a matrix H multiplied by a vector v
-    # we first need to define both H and v.
-
-    # For the time being we can define H as a random matrix with a reasonably large set of
-    # dimensions.
-
-    # First parametrize the dimensions
-    M = 100
-    N = 60
-
-    # Then define H and v.
-
-    H = (10*np.random.random((M,N))-5*np.ones((M,N))) + (10j*np.random.random((M,N))-5j*np.ones((M,N)))
-
-    # and v is a random vector of the appropriate dimensions.
-    # Actually if I define v as a massive matrix and then iterate through the columns that
-    # would give me K iterations to look at min,max and average error.
-
-    K = 10000
-
-    v = (10*np.random.random((N,K))-5*np.ones((N,K))) + (10j*np.random.random((N,K))-5j*np.ones((N,K)))
-
-    # Now I need the singular value decomposition of H
-    U, s, Vh = linalg.svd(H)
-
-    # And I can create a low rank approximation of H
-    # I can loop through all the ranks of a full rank matrix and create a list of error statistics
-
-    # First create the list of error statistics it will be a K list of named tuples
-    ErrorStatistic = namedtuple('ErrorStatistic', 'error_bound min_error mean_error max_error')
-    error_statistics = []
-    for rank in range(1,N+1):
-        # Then constructing the matrix as U_low_rank \in C^{n,10} times Sigma_low_rank \in R^{10,10} times Vh_low_rank \in C^{10,m}
-        H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
-        # The error in the 2 norm sense is going to be ||H*v - H_low_rank*v||
-        # And the theoretical upper bound (I think) of that error is going to be the largest excluded singular value
-        # First we find that singular value
-        error_bound = s[rank] if rank < len(s) else 0 # It's RANK not RANK+1 because of python's 0 indexing
-        # print(f'Error Bound is: {error_bound}')
-
-        # Now evaluate the error directly normalised by the magnitude of v ||H*v - H_low_rank*v||/||v||
-        # (Wait is the norm a linear process can I do this?)
-
-        # iterate through the loop K times and find the min, max and average.
-        error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(K)]
-        error_statistics.append(ErrorStatistic(error_bound, min(error_vec), sum(error_vec)/K, max(error_vec)))
-
-    # I'm curious about what the distribution looks like. So I'm going to run a single error vec iteration. with a fixed rank estimation
-    # This will be repeating one of the iterations in the above loop which adds redundancy, but I don't think it's a big deal here.
-    rank = 10
-    H_low_rank = np.matmul( np.matmul(U[:,0:rank],linalg.diagsvd(s,U.shape[0],Vh.shape[0])[0:rank,0:rank]), Vh[0:rank,:])
-    error_vec = [np.linalg.norm(np.matmul(H,v[:,i]) - np.matmul(H_low_rank, v[:,i]), ord=2)/np.linalg.norm(v[:,i], ord=2) for i in range(K)]
-    
-
-    # Below I'm going to try and plot this error_statistics madness
-    fig, axs = plt.subplots(2,1) # Create a figure containing a single axes.
-    axs[0].plot(range(1,N+1),[error_statistics[i].error_bound for i in range(N)])
-    axs[0].errorbar(
-        range(1,N+1),
-        [error_statistics[i].mean_error for i in range(N)],
-        [
-            [error_statistics[i].mean_error - error_statistics[i].min_error for i in range(N)],
-            [error_statistics[i].max_error - error_statistics[i].mean_error for i in range(N)]
-        ],
-        fmt='or',
-        capsize=3)
-    # Add axs labels
-    axs[0].set_ylabel('Error Magnitude in the 2-norm')
-    axs[0].set_xlabel('Rank of SVD Approximation')
-    axs[0].set_title('Error Bounds Comparison between upper bound and \'real\' error.')
-
-    # Plot the Histogram
-    axs[1].hist(error_vec, bins=1000)
-
-    # Add axs labels
-    axs[1].set_ylabel('No. of Vectors')
-    axs[1].set_xlabel(f'Error Magnitude in the 2-norm of rank {rank} approximation')
-    axs[1].set_title(f'Error Magnitude Distribution in the 2-norm of rank {rank} approximation')
-
-    # Label the figure
-    fig.suptitle('A Study of the Error Performance of the Singular Value Decomposition in the 2-norm')
-    plt.show()
+    singular_value_decomposition_error_study(100,60,10000)
