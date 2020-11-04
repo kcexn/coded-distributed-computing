@@ -1,2 +1,3 @@
 .vscode/*
+__pycache__/*
 singular-value-decomposition.code-workspace
