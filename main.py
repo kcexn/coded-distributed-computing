@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import linalg
 
-def singular_value_decomposition_error_study(m: int, n: int, k: int, order: np.array = None, H: np.matrix = None) -> None:
+def singular_value_decomposition_error_study(m: int, n: int, k: int, *, order: np.array = None, H: np.matrix = None) -> None:
     '''
     Parameters:
     ---
@@ -230,5 +230,34 @@ def two_norm_of_matrix(a_mat: np.matrix) -> bool:
 if __name__ == "__main__":
     # a = np.random.randint(1,10,size=(4,2)) + 1j*np.random.randint(1,10,size=(4,2))
     # print(two_norm_of_matrix(np.asmatrix(a)))
+    m = 60
+    n = 30
 
-    singular_value_decomposition_error_study(500,300,10000,np.random.choice(np.arange(300),300,replace=False))
+    H = (10*np.random.random((m,n))-5*np.ones((m,n))) + (10j*np.random.random((m,n))-5j*np.ones((m,n)))
+
+    # Worst Case Scenario
+    singular_value_decomposition_error_study(
+        m,
+        n,
+        10000,
+        order = np.arange(n)[::-1],
+        H = H
+    )
+
+    # Random Case Scenario
+    singular_value_decomposition_error_study(
+        m,
+        n,
+        10000,
+        order = np.random.choice(np.arange(n), n, replace = False),
+        H = H
+    )
+
+    # Best Case Scenario
+    singular_value_decomposition_error_study(
+        m,
+        n,
+        10000,
+        order = np.arange(n),
+        H = H
+    )
