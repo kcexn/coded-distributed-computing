@@ -6,6 +6,64 @@ from scipy import linalg
 
 from coded_distributed_computing import encode_matrix
 
+class NoSolution(Exception):
+    pass
+
+def gauss_decoder(generator: np.matrix, coded_message: np.array) -> np.array:
+    # to make this matrix 1 at the top and linearly dependent rows at the bottom
+    transposed_generator = np.transpose(generator)
+
+    # capture erasures that happened in the message part of the matrix
+    # for decoding
+    erasure_count = 0
+    for i in range(transposed_generator.shape[1]):
+        if coded_message[i,0] == 0:
+            transposed_generator[i][i] = 0
+            erasure_count += 1
+
+    # There were no erasures in the message part of the received
+    # word so truncate the message and return the word early.
+    if erasure_count == 0:
+        return coded_message[0:transposed_generator.shape[1]][:]
+    
+    # capture erasures that happened in the redundancy part of the matrix for decoding
+    erasure_set = set(i for i in range(transposed_generator.shape[1], transposed_generator.shape[0]))
+    # print(erasure_set)
+    for j in range(transposed_generator.shape[1], transposed_generator.shape[0]):
+        if coded_message[j][0] == 0:
+            transposed_generator[j] = np.array([0 for i in range(transposed_generator.shape[1])])
+            erasure_set = erasure_set - set([j])
+    
+    if len(erasure_set) < erasure_count:
+        raise NoSolution
+        
+    # Perform the necessary pivots ONLY if the identity matrix
+    # at the top is disturbed
+    pivoted_rows = set()
+    for j in range(transposed_generator.shape[1]):
+        if transposed_generator[j][j] == 0:
+            # Swap row with 0 array. This way is slightly faster than needing to do multiple
+            # deep copies I think.
+            redundant_row = erasure_set.pop()
+            transposed_generator[j] = transposed_generator[redundant_row]
+            transposed_generator[redundant_row] = np.array([0 for k in range(transposed_generator.shape[1])])
+
+            # Match with corresponding swaps in the coded_message array
+            coded_message[j][0], coded_message[redundant_row][0] = coded_message[redundant_row][0], 0
+            pivoted_rows.add(j)
+    
+    # Perform row reduction for each row that was pivoted.
+    for pivoted_row in pivoted_rows:
+        # subtract off all other rows in the matrix (elements in the message)
+        for j in range(transposed_generator.shape[1]):
+            if j != pivoted_row:
+                coded_message[pivoted_row][0] -= coded_message[j][0]*(transposed_generator[pivoted_row][j])
+        # scale the row appropriately in the matrix (element in the message)
+        coded_message[pivoted_row][0] = coded_message[pivoted_row][0]/(transposed_generator[pivoted_row][pivoted_row])
+    
+    return coded_message[0:transposed_generator.shape[1]][:]
+
+
 if __name__ == "__main__":
     K = 49
     N = 30
@@ -28,6 +86,7 @@ if __name__ == "__main__":
 
     A_matrices = np.array_split(H, NUM_OF_DIVISIONS)
     
+    # I'm assuming that random never produces a 0.
     if K % NUM_OF_DIVISIONS != 0:
         large_generator = SCALE_FACTOR*np.random.random((K//NUM_OF_DIVISIONS + 1, NUM_OF_PROCESSORS - (K//NUM_OF_DIVISIONS + 1)))
         large_generator = np.concatenate((np.identity(K//NUM_OF_DIVISIONS + 1), large_generator), axis = 1)
@@ -45,14 +104,6 @@ if __name__ == "__main__":
                 np.array(np.asmatrix(np.matmul(np.asmatrix(matrix).T, generator)).T)
             )
 
-    # This stacking here is wrong. Instead of concatenating along the 3rd dimension like I've done here.
-    # I should concatenate along the second dimension. Then to do the required shuffling, I apply a big
-    # row permutation matrix. 
-    # big_coded_matrix = np.stack(coded_A_matrices, axis = 2)
-    # print(big_coded_matrix.shape)
-    # transposed_big_coded_matrix = np.transpose(big_coded_matrix)
-    # print(transposed_big_coded_matrix.shape)
-
     big_coded_matrix = np.concatenate(coded_A_matrices, axis = 0)
     # print(big_coded_matrix.shape)
     # create the row permutation matrix
@@ -62,20 +113,21 @@ if __name__ == "__main__":
     
     big_coded_B_matrices = np.matmul(permutation, big_coded_matrix)
     B_matrices = np.array_split(big_coded_B_matrices, NUM_OF_DIVISIONS)
-    print(len(B_matrices))
+    # print(len(B_matrices))
+
+    encoded_solution = [np.matmul(B_matrix, x) for B_matrix in B_matrices]
+    big_encoded_solution = np.concatenate(encoded_solution, axis = 0)
+    unpermuted_big_encoded_solution = np.matmul(np.transpose(permutation), big_encoded_solution)
+    unpermuted_encoded_solution = np.array_split(unpermuted_big_encoded_solution, NUM_OF_DIVISIONS)
+
+    error_encoded_word = unpermuted_encoded_solution[2][:]
+    for i in range(5,8):
+        error_encoded_word[:][i] = 0
 
 
-
-    # print(np.random.permutation(np.arange(9)))
-    # identity = np.identity(9)
-    # for i in np.random.permutation(np.arange(9)):
-        
-    # print(transposed_big_coded_matrix.shape)
-    # original_matrix = np.transpose(transposed_big_coded_matrix, axes = (2,1,0))
-    # print(original_matrix.shape)
-
-
-
+    # print(reference_solution[:])
+    # print(unpermuted_encoded_solution[0][:])
+    
 
 
 
